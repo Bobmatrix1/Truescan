@@ -31,7 +31,10 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environments
+# Virtual Environments & Secrets
+.env
+.env.*
+*.env
 .venv/
 venv/
 ENV/

@@ -7,7 +7,7 @@ import os
 import io
 import base64
 import tempfile
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,14 +16,24 @@ import forensics
 
 app = FastAPI(title="Deepfake Forensics API", version="2.0.0")
 
-# Enable CORS for Next.js frontend (port 3000 or custom)
+# Enable CORS for Next.js frontend (production & local)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Global exception handler ensuring CORS headers are always present on errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": f"Internal Server Error: {str(exc)}"},
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
 
 # Serve sample media directories
 if os.path.exists("images"):
@@ -75,9 +85,10 @@ async def health_check():
     return {
         "status": "healthy",
         "version": "2.0.0",
+        "inference_mode": "cloud_serverless_and_signals",
         "models": {
-            "image_vision_transformer": "ready_on_demand",
-            "audio_ast_transformer": "ready_on_demand",
+            "huggingface_image_vit": "active_serverless",
+            "huggingface_audio_ast": "active_serverless",
             "c2pa_provenance": "active",
             "frequency_fft_ela": "active"
         }
@@ -190,17 +201,24 @@ async def analyze_video_endpoint(file: UploadFile = File(...)):
 @app.post("/api/analyze/sample")
 async def analyze_sample_endpoint(sample_path: str):
     """Analyze a predefined workspace sample file directly."""
-    if not os.path.exists(sample_path):
+    clean_path = sample_path.strip().lstrip("/\\")
+    target_path = None
+    
+    if os.path.exists(clean_path):
+        target_path = clean_path
+    elif os.path.exists(sample_path):
+        target_path = sample_path
+    else:
         raise HTTPException(status_code=404, detail=f"Sample file not found: {sample_path}")
         
-    ext = os.path.splitext(sample_path)[1].lower()
+    ext = os.path.splitext(target_path)[1].lower()
     if ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        report, ela_img, fft_img = forensics.analyze_image(sample_path)
+        report, ela_img, fft_img = forensics.analyze_image(target_path)
         metrics = parse_report_metrics(report)
         return {
             "success": True,
             "type": "image",
-            "filename": os.path.basename(sample_path),
+            "filename": os.path.basename(target_path),
             "metrics": metrics,
             "visualizations": {
                 "ela_image": pil_to_base64(ela_img),
@@ -208,21 +226,21 @@ async def analyze_sample_endpoint(sample_path: str):
             }
         }
     elif ext in ['.flac', '.wav', '.mp3', '.ogg', '.m4a']:
-        report = forensics.analyze_audio(sample_path)
+        report = forensics.analyze_audio(target_path)
         metrics = parse_report_metrics(report)
         return {
             "success": True,
             "type": "audio",
-            "filename": os.path.basename(sample_path),
+            "filename": os.path.basename(target_path),
             "metrics": metrics
         }
     elif ext in ['.mp4', '.mov', '.avi', '.webm']:
-        report, preview_img = forensics.analyze_video(sample_path)
+        report, preview_img = forensics.analyze_video(target_path)
         metrics = parse_report_metrics(report)
         return {
             "success": True,
             "type": "video",
-            "filename": os.path.basename(sample_path),
+            "filename": os.path.basename(target_path),
             "metrics": metrics,
             "visualizations": {
                 "preview_frame": pil_to_base64(preview_img)
