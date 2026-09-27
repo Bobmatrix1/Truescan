@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #090D16;
+    --foreground: #F1F5F9;
+    --card: #0F172A;
+    --card-foreground: #F8FAFC;
+    --border: #1E293B;
+    --primary: #3B82F6;
+    --primary-foreground: #FFFFFF;
+    --accent: #10B981;
+    --destructive: #EF4444;
+  }
+}
+
+body {
+  background-color: #070B14;
+  color: #E2E8F0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Cyber/Forensic Animations */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes scan-beam {
+  0% {
+    top: -10%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 105%;
+    opacity: 0;
+  }
+}
+
+.animate-scan-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  animation: scan-beam 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Edge-to-Edge Straight Hyper-Bright Laser Lines */
+.laser-line-image {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #ffffff;
+  box-shadow: 
+    0 0 6px #ffffff,
+    0 0 14px #60a5fa,
+    0 0 28px #3b82f6,
+    0 0 50px #2563eb,
+    0 0 80px #1d4ed8;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.laser-line-video {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #ffffff;
+  box-shadow: 
+    0 0 6px #ffffff,
+    0 0 14px #22d3ee,
+    0 0 28px #06b6d4,
+    0 0 50px #0891b2,
+    0 0 80px #0e7490;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.laser-line-audio {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 3px;
+  background-color: #ffffff;
+  box-shadow: 
+    0 0 6px #ffffff,
+    0 0 14px #c084fc,
+    0 0 28px #a855f7,
+    0 0 50px #9333ea,
+    0 0 80px #7e22ce;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B1120;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+.glass-panel-interactive:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+}
+
+/* Hide Next.js dev tools floating icon badge */
+nextjs-portal,
+#nextjs-dev-tools,
+[data-nextjs-dev-overlay-container],
+[data-nextjs-toast],
+div[data-nextjs-dialog-overlay] {
+  display: none !important;
+}
+
