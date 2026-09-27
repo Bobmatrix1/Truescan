@@ -19,6 +19,7 @@ import {
   Info
 } from "lucide-react";
 import { HumanReport } from "./HumanReport";
+import { API_BASE_URL } from "@/lib/api";
 
 interface AnalysisResult {
   is_real: boolean;
@@ -80,7 +81,7 @@ export function ImageDetector() {
       setError(null);
       setScanStep(`Examining ${name}...`);
       
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/sample?sample_path=" + encodeURIComponent(samplePath), {
+      const res = await fetch(`${API_BASE_URL}/api/analyze/sample?sample_path=` + encodeURIComponent(samplePath), {
         method: "POST"
       });
       
@@ -91,7 +92,7 @@ export function ImageDetector() {
         setResult(data.metrics);
         setElaImage(data.visualizations?.ela_image || null);
         setFftImage(data.visualizations?.fft_spectrum || null);
-        setPreviewUrl("http://127.0.0.1:8000/" + samplePath.replace(/\\/g, "/"));
+        setPreviewUrl(`${API_BASE_URL}/` + samplePath.replace(/\\/g, "/"));
       } else {
         throw new Error(data.error || "Analysis failed");
       }
@@ -117,7 +118,7 @@ export function ImageDetector() {
       setTimeout(() => setScanStep("Analyzing frequency spectrum and compression levels..."), 500);
       setTimeout(() => setScanStep("Evaluating neural vision patterns..."), 1000);
 
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/image", {
+      const res = await fetch(`${API_BASE_URL}/api/analyze/image`, {
         method: "POST",
         body: formData,
       });
@@ -135,7 +136,7 @@ export function ImageDetector() {
         throw new Error(data.error || "Analysis failed");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to analyze image. Please ensure the backend is active at http://127.0.0.1:8000.");
+      setError(err.message || `Failed to analyze image. Please ensure the backend is active at ${API_BASE_URL}.`);
     } finally {
       setLoading(false);
       setScanStep("");
@@ -217,7 +218,7 @@ export function ImageDetector() {
                 <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-800 border border-slate-700 shrink-0 relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="http://127.0.0.1:8000/images/real%20image.jpeg"
+                    src={`${API_BASE_URL}/images/real%20image.jpeg`}
                     alt="Real Sample"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     onError={(e) => {
@@ -245,7 +246,7 @@ export function ImageDetector() {
                 <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-800 border border-slate-700 shrink-0 relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="http://127.0.0.1:8000/images/deepfake%20image.jpeg"
+                    src={`${API_BASE_URL}/images/deepfake%20image.jpeg`}
                     alt="AI Deepfake Sample"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     onError={(e) => {

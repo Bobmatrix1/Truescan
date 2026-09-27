@@ -19,6 +19,7 @@ import {
   Music
 } from "lucide-react";
 import { HumanReport } from "./HumanReport";
+import { API_BASE_URL } from "@/lib/api";
 
 interface AnalysisResult {
   is_real: boolean;
@@ -91,7 +92,7 @@ export function AudioDetector() {
       setError(null);
       setScanStep(`Examining voice sample: ${name}...`);
       
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/sample?sample_path=" + encodeURIComponent(samplePath), {
+      const res = await fetch(`${API_BASE_URL}/api/analyze/sample?sample_path=` + encodeURIComponent(samplePath), {
         method: "POST"
       });
       
@@ -100,13 +101,13 @@ export function AudioDetector() {
       
       if (data.success) {
         setResult(data.metrics);
-        setAudioUrl("http://127.0.0.1:8000/" + samplePath.replace(/\\/g, "/"));
+        setAudioUrl(`${API_BASE_URL}/` + samplePath.replace(/\\/g, "/"));
         setIsPlaying(false);
       } else {
         throw new Error(data.error || "Analysis failed");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to analyze audio sample. Ensure FastAPI server is running.");
+      setError(err.message || `Failed to analyze audio sample. Ensure FastAPI server is running at ${API_BASE_URL}.`);
     } finally {
       setLoading(false);
       setScanStep("");
@@ -127,7 +128,7 @@ export function AudioDetector() {
       setTimeout(() => setScanStep("Evaluating neural vocoder harmonics and frequency cutoff..."), 600);
       setTimeout(() => setScanStep("Calculating voice authenticity scores..."), 1200);
 
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/audio", {
+      const res = await fetch(`${API_BASE_URL}/api/analyze/audio`, {
         method: "POST",
         body: formData,
       });
@@ -143,7 +144,7 @@ export function AudioDetector() {
         throw new Error(data.error || "Analysis failed");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to analyze audio. Please ensure the backend is running at http://127.0.0.1:8000.");
+      setError(err.message || `Failed to analyze audio. Please ensure the backend is running at ${API_BASE_URL}.`);
     } finally {
       setLoading(false);
       setScanStep("");

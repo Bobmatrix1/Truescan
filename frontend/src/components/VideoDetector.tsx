@@ -16,6 +16,7 @@ import {
   Play
 } from "lucide-react";
 import { HumanReport } from "./HumanReport";
+import { API_BASE_URL } from "@/lib/api";
 
 interface AnalysisResult {
   is_real: boolean;
@@ -77,7 +78,7 @@ export function VideoDetector() {
       setError(null);
       setScanStep(`Examining video sequence: ${name}...`);
       
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/sample?sample_path=" + encodeURIComponent(samplePath), {
+      const res = await fetch(`${API_BASE_URL}/api/analyze/sample?sample_path=` + encodeURIComponent(samplePath), {
         method: "POST"
       });
       
@@ -87,12 +88,12 @@ export function VideoDetector() {
       if (data.success) {
         setResult(data.metrics);
         setPreviewFrame(data.visualizations?.preview_frame || null);
-        setVideoUrl("http://127.0.0.1:8000/" + samplePath.replace(/\\/g, "/"));
+        setVideoUrl(`${API_BASE_URL}/` + samplePath.replace(/\\/g, "/"));
       } else {
         throw new Error(data.error || "Analysis failed");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to analyze video sample. Ensure FastAPI server is running.");
+      setError(err.message || `Failed to analyze video sample. Ensure FastAPI server is running at ${API_BASE_URL}.`);
     } finally {
       setLoading(false);
       setScanStep("");
@@ -113,7 +114,7 @@ export function VideoDetector() {
       setTimeout(() => setScanStep("Analyzing frame sequences for deepfake manipulation..."), 1000);
       setTimeout(() => setScanStep("Checking temporal consistency and face boundaries..."), 2000);
 
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/video", {
+      const res = await fetch(`${API_BASE_URL}/api/analyze/video`, {
         method: "POST",
         body: formData,
       });
@@ -130,7 +131,7 @@ export function VideoDetector() {
         throw new Error(data.error || "Analysis failed");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to analyze video. Please ensure the backend is running at http://127.0.0.1:8000.");
+      setError(err.message || `Failed to analyze video. Please ensure the backend is running at ${API_BASE_URL}.`);
     } finally {
       setLoading(false);
       setScanStep("");
@@ -210,7 +211,7 @@ export function VideoDetector() {
               >
                 <div className="w-14 h-14 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden relative shrink-0 flex items-center justify-center">
                   <video
-                    src="http://127.0.0.1:8000/videos/real-1.mp4"
+                    src={`${API_BASE_URL}/videos/real-1.mp4`}
                     className="w-full h-full object-cover"
                     muted
                   />
@@ -236,7 +237,7 @@ export function VideoDetector() {
               >
                 <div className="w-14 h-14 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden relative shrink-0 flex items-center justify-center">
                   <video
-                    src="http://127.0.0.1:8000/videos/aaa.mp4"
+                    src={`${API_BASE_URL}/videos/aaa.mp4`}
                     className="w-full h-full object-cover"
                     muted
                   />
