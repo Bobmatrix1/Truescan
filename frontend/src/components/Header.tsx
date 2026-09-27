@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ShieldCheck, Activity } from "lucide-react";
+import Image from "next/image";
 
 export function Header() {
   return (
@@ -9,8 +9,15 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand & Identity */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
-            <ShieldCheck className="w-5 h-5" />
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-slate-900 border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-950/50">
+            <Image
+              src="/logo.png"
+              alt="TrueScan Logo"
+              width={40}
+              height={40}
+              className="object-cover w-full h-full"
+              priority
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">

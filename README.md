@@ -1,6 +1,12 @@
-# TrueScan • Media Authenticity & Deepfake Forensic Platform
+<p align="center">
+  <img src="truescan%20logo.png" alt="TrueScan Deepfake Detector Logo" width="260" style="border-radius: 16px;" />
+</p>
 
-TrueScan is a multi-modal digital forensics and media authenticity engine designed to detect AI generated imagery, deepfake videos, and synthetic voice clones with high accuracy.
+<h1 align="center">TrueScan • Media Authenticity & Deepfake Forensic Platform</h1>
+
+<p align="center">
+  <b>Multi-modal digital forensics and media authenticity engine designed to detect AI generated imagery, deepfake videos, and synthetic voice clones with high precision.</b>
+</p>
 
 ---
 
