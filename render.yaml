@@ -2,8 +2,14 @@ services:
   - type: web
     name: truescan-api
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m uvicorn server:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio && pip install --no-cache-dir -r requirements.txt
+    startCommand: python -m uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.12
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: WEB_CONCURRENCY
+        value: "1"

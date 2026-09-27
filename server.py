@@ -76,8 +76,10 @@ async def health_check():
         "status": "healthy",
         "version": "2.0.0",
         "models": {
-            "image_vision_transformer": forensics.img_ai_pipeline is not None,
-            "audio_ast_transformer": forensics.audio_ast_pipeline is not None
+            "image_vision_transformer": "ready_on_demand",
+            "audio_ast_transformer": "ready_on_demand",
+            "c2pa_provenance": "active",
+            "frequency_fft_ela": "active"
         }
     }
 

@@ -19,23 +19,47 @@ from PIL import Image, ImageChops, ImageEnhance, ExifTags
 import librosa
 from transformers import pipeline
 
-print("Initializing High-Accuracy Forensic AI Models...")
+import gc
 
-# 1. Vision Transformer for AI-Generated Images
-try:
-    img_ai_pipeline = pipeline('image-classification', model='Organika/sdxl-detector')
-    print("[SUCCESS] Vision Transformer (Organika/sdxl-detector) ready.")
-except Exception as e:
-    img_ai_pipeline = None
-    print(f"[WARNING] Vision Transformer failed to load: {e}")
+# Configure PyTorch CPU thread count to minimize memory overhead
+torch.set_num_threads(1)
 
-# 2. Audio Spectrogram Transformer for Voice Clones & Synthetic Speech
-try:
-    audio_ast_pipeline = pipeline('audio-classification', model='MattyB95/AST-VoxCelebSpoof-Synthetic-Voice-Detection')
-    print("[SUCCESS] Audio Spectrogram Transformer (MattyB95) ready.")
-except Exception as e:
-    audio_ast_pipeline = None
-    print(f"[WARNING] Audio AST pipeline failed: {e}")
+_img_ai_pipeline = None
+_audio_ast_pipeline = None
+
+def get_img_ai_pipeline():
+    """Lazy loader for Vision Transformer image detector (saves ~400MB RAM on startup)."""
+    global _img_ai_pipeline
+    if _img_ai_pipeline is None:
+        try:
+            print("[INFO] Loading Vision Transformer (Organika/sdxl-detector)...")
+            _img_ai_pipeline = pipeline(
+                'image-classification', 
+                model='Organika/sdxl-detector',
+                device=-1
+            )
+            print("[SUCCESS] Vision Transformer (Organika/sdxl-detector) ready.")
+        except Exception as e:
+            print(f"[WARNING] Vision Transformer failed to load: {e}")
+            _img_ai_pipeline = False
+    return _img_ai_pipeline if _img_ai_pipeline is not False else None
+
+def get_audio_ast_pipeline():
+    """Lazy loader for Audio Spectrogram Transformer (saves ~400MB RAM on startup)."""
+    global _audio_ast_pipeline
+    if _audio_ast_pipeline is None:
+        try:
+            print("[INFO] Loading Audio Spectrogram Transformer (MattyB95)...")
+            _audio_ast_pipeline = pipeline(
+                'audio-classification', 
+                model='MattyB95/AST-VoxCelebSpoof-Synthetic-Voice-Detection',
+                device=-1
+            )
+            print("[SUCCESS] Audio Spectrogram Transformer (MattyB95) ready.")
+        except Exception as e:
+            print(f"[WARNING] Audio AST pipeline failed: {e}")
+            _audio_ast_pipeline = False
+    return _audio_ast_pipeline if _audio_ast_pipeline is not False else None
 
 
 # ==========================================
@@ -239,9 +263,10 @@ def analyze_image(img_input):
     
     model_real_prob = 0.5
     model_fake_prob = 0.5
-    if img_ai_pipeline is not None:
+    img_pipe = get_img_ai_pipeline()
+    if img_pipe is not None:
         try:
-            preds = img_ai_pipeline(cropped_pil)
+            preds = img_pipe(cropped_pil)
             for p in preds:
                 lbl = p['label'].lower()
                 if lbl in ['human', 'real', 'realism']:
@@ -353,9 +378,10 @@ def analyze_audio(audio_input):
         
     ast_real = 0.5
     ast_fake = 0.5
-    if audio_ast_pipeline is not None and audio_path is not None:
+    ast_pipe = get_audio_ast_pipeline()
+    if ast_pipe is not None and audio_path is not None:
         try:
-            preds = audio_ast_pipeline(audio_path)
+            preds = ast_pipe(audio_path)
             for p in preds:
                 lbl = p['label'].lower()
                 if lbl in ['bonafide', 'real', 'human']:
@@ -466,11 +492,12 @@ def analyze_video(video_path, max_frames=8):
         
     frame_reals = []
     frame_fakes = []
+    img_pipe = get_img_ai_pipeline()
     for frame in frames:
         pil_f = Image.fromarray(frame)
-        if img_ai_pipeline is not None:
+        if img_pipe is not None:
             try:
-                preds = img_ai_pipeline(pil_f)
+                preds = img_pipe(pil_f)
                 for p in preds:
                     lbl = p['label'].lower()
                     if lbl in ['human', 'real', 'realism']:
