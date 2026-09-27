@@ -1,9 +1,10 @@
-# Large Model Checkpoints (>100MB)
-checkpoints/*.pth
+# Large Model Checkpoints
+checkpoints/
 *.pth
 *.pt
 *.bin
 *.h5
+*.onnx
 
 # Python Bytecode & Cache
 __pycache__/
