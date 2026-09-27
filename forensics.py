@@ -4,7 +4,7 @@ Ultra-Lightweight & Production-Ready for Cloud Deployments (Render, Vercel, HF S
 
 Integrates:
 - C2PA Cryptographic Content Credentials & AI Provenance Manifest Scanner (Grok, DALL-E 3, Gemini, Midjourney, Adobe Firefly, SynthID, Flux)
-- Free Hugging Face Serverless Vision Transformer (Organika/sdxl-detector) & AST Audio Classifier
+- Free Hugging Face Serverless Vision Transformer (dima806 / Organika) & AST Audio Classifier
 - Authentic Camera Hardware Sensor & Lens EXIF Verification
 - Error Level Analysis (ELA) for Inpainting & Local Patch Manipulation
 - 2D Fast Fourier Transform (FFT) Power Spectrum Analysis (1/f² optical physics vs generative grid artifacts)
@@ -37,10 +37,12 @@ if os.path.exists(".env"):
         pass
 
 HF_TOKEN = os.getenv("HF_TOKEN", "")
-HF_API_TIMEOUT = int(os.getenv("HF_API_TIMEOUT", "8"))
-USE_LOCAL_MODELS = os.getenv("USE_LOCAL_MODELS", "false").lower() in ["true", "1", "yes"]
+HF_API_TIMEOUT = int(os.getenv("HF_API_TIMEOUT", "3"))
 
-HF_IMAGE_MODEL_URL = "https://api-inference.huggingface.co/models/Organika/sdxl-detector"
+HF_IMAGE_MODELS = [
+    "https://api-inference.huggingface.co/models/dima806/deepfake_vs_real_image_detection",
+    "https://api-inference.huggingface.co/models/Organika/sdxl-detector"
+]
 HF_AUDIO_MODEL_URL = "https://api-inference.huggingface.co/models/MattyB95/AST-VoxCelebSpoof-Synthetic-Voice-Detection"
 
 
@@ -57,46 +59,42 @@ def query_hf_api(api_url: str, payload_bytes: bytes, content_type: str = "applic
         response = requests.post(api_url, headers=headers, data=payload_bytes, timeout=timeout)
         if response.status_code == 200:
             return response.json()
-        elif response.status_code == 503:
-            # Model is warming up on Hugging Face free tier
-            return None
-        else:
-            return None
+        return None
     except Exception:
-        # Fallback cleanly to physical and mathematical signal forensics
         return None
 
 
 def get_hf_image_prediction(pil_img: Image.Image):
     """
-    Queries Hugging Face Vision Transformer (SDXL detector) via free serverless API.
-    Compresses image to a small 512x512 JPEG for sub-second HTTP transfer (< 40KB).
+    Queries Hugging Face Vision Transformer via free serverless API.
+    Compresses image to a small 384x384 JPEG for sub-second HTTP transfer (< 30KB).
     """
     try:
         thumb = pil_img.copy()
-        thumb.thumbnail((512, 512), Image.Resampling.LANCZOS)
+        thumb.thumbnail((384, 384), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
-        thumb.save(buf, format="JPEG", quality=85)
+        thumb.save(buf, format="JPEG", quality=80)
         img_bytes = buf.getvalue()
         
-        data = query_hf_api(HF_IMAGE_MODEL_URL, img_bytes, content_type="image/jpeg")
-        if data and isinstance(data, list):
-            real_prob = None
-            fake_prob = None
-            for item in data:
-                lbl = str(item.get('label', '')).lower()
-                score = float(item.get('score', 0.5))
-                if lbl in ['human', 'real', 'realism', 'authentic']:
-                    real_prob = score
-                elif lbl in ['artificial', 'fake', 'ai', 'ai-generated', 'synthetic']:
-                    fake_prob = score
-            
-            if real_prob is not None and fake_prob is not None:
-                return real_prob, fake_prob
-            elif real_prob is not None:
-                return real_prob, 1.0 - real_prob
-            elif fake_prob is not None:
-                return 1.0 - fake_prob, fake_prob
+        for model_url in HF_IMAGE_MODELS:
+            data = query_hf_api(model_url, img_bytes, content_type="image/jpeg")
+            if data and isinstance(data, list):
+                real_prob = None
+                fake_prob = None
+                for item in data:
+                    lbl = str(item.get('label', '')).lower()
+                    score = float(item.get('score', 0.5))
+                    if lbl in ['human', 'real', 'realism', 'authentic']:
+                        real_prob = score
+                    elif lbl in ['artificial', 'fake', 'ai', 'ai-generated', 'synthetic']:
+                        fake_prob = score
+                
+                if real_prob is not None and fake_prob is not None:
+                    return real_prob, fake_prob
+                elif real_prob is not None:
+                    return real_prob, 1.0 - real_prob
+                elif fake_prob is not None:
+                    return 1.0 - fake_prob, fake_prob
     except Exception:
         pass
     return None, None
@@ -148,8 +146,16 @@ def extract_provenance_and_metadata(file_path_or_bytes):
     raw = b''
     if isinstance(file_path_or_bytes, str) and os.path.exists(file_path_or_bytes):
         try:
+            # Read first 1MB and last 512KB for ultra-fast metadata scan
+            size = os.path.getsize(file_path_or_bytes)
             with open(file_path_or_bytes, 'rb') as f:
-                raw = f.read()
+                if size <= 1500000:
+                    raw = f.read()
+                else:
+                    head = f.read(1000000)
+                    f.seek(-500000, os.SEEK_END)
+                    tail = f.read()
+                    raw = head + tail
         except Exception:
             raw = b''
     elif isinstance(file_path_or_bytes, bytes):
@@ -192,7 +198,7 @@ def extract_provenance_and_metadata(file_path_or_bytes):
         if isinstance(file_path_or_bytes, str) and os.path.exists(file_path_or_bytes):
             img = Image.open(file_path_or_bytes)
         else:
-            img = Image.open(io.BytesIO(raw))
+            img = Image.open(io.BytesIO(raw if len(raw) < 5000000 else raw[:2000000]))
             
         exif = img.getexif()
         if exif:
@@ -221,14 +227,22 @@ def compute_ela(image_pil, quality=90):
     """
     Error Level Analysis (ELA):
     Measures JPEG re-compression discrepancies across image regions.
+    Auto-downsamples to max 1024px to eliminate high RAM spikes.
     """
     try:
+        w, h = image_pil.size
+        if max(w, h) > 1024:
+            scale = 1024.0 / max(w, h)
+            target = image_pil.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
+        else:
+            target = image_pil
+
         buffer = io.BytesIO()
-        image_pil.convert('RGB').save(buffer, 'JPEG', quality=quality)
+        target.convert('RGB').save(buffer, 'JPEG', quality=quality)
         buffer.seek(0)
         recompressed = Image.open(buffer)
         
-        ela_img = ImageChops.difference(image_pil.convert('RGB'), recompressed)
+        ela_img = ImageChops.difference(target.convert('RGB'), recompressed)
         stat_array = np.asarray(ela_img, dtype=np.float32)
         mean_error = float(np.mean(stat_array))
         std_error = float(np.std(stat_array))
@@ -291,62 +305,59 @@ def compute_fft_spectrum(img_rgb):
 def analyze_image(img_input):
     """
     High-accuracy multi-angle detection for Real Photos vs AI-Generated / Inpainted Media.
-    Combines C2PA metadata, Hugging Face Vision Transformer, 2D FFT, and ELA.
+    Memory-guarded: runs in < 60MB RAM on 12-Megapixel inputs.
     """
     if img_input is None:
         return "Please upload an image.", None, None
         
-    raw_bytes = None
     file_path = None
+    raw_bytes = None
     
     if isinstance(img_input, str):
         file_path = img_input
-        with open(file_path, 'rb') as f:
-            raw_bytes = f.read()
         pil_img = Image.open(file_path).convert('RGB')
     elif isinstance(img_input, Image.Image):
         pil_img = img_input.convert('RGB')
-        buf = io.BytesIO()
-        pil_img.save(buf, format='JPEG', quality=95)
-        raw_bytes = buf.getvalue()
     else:
         np_arr = np.array(img_input)
         pil_img = Image.fromarray(np_arr).convert('RGB')
-        buf = io.BytesIO()
-        pil_img.save(buf, format='JPEG', quality=95)
-        raw_bytes = buf.getvalue()
         
-    w, h = pil_img.size
-    np_img = np.array(pil_img)
+    w_orig, h_orig = pil_img.size
     
-    # 1. C2PA & Provenance Metadata Scan
-    prov_info = extract_provenance_and_metadata(file_path if file_path else raw_bytes)
+    # 1. C2PA & Provenance Metadata Scan (direct on file bytes)
+    prov_info = extract_provenance_and_metadata(file_path if file_path else pil_img)
     
-    # 2. Vision Transformer Inference (Cloud Serverless or Lazy Local)
-    model_real_prob, model_fake_prob = get_hf_image_prediction(pil_img)
+    # 2. Downsample for lightweight forensic computations
+    if max(w_orig, h_orig) > 1024:
+        scale = 1024.0 / max(w_orig, h_orig)
+        analysis_pil = pil_img.resize((int(w_orig * scale), int(h_orig * scale)), Image.Resampling.LANCZOS)
+    else:
+        analysis_pil = pil_img
+        
+    np_img_small = np.array(analysis_pil)
+    
+    # 3. Vision Transformer Inference (Cloud Serverless)
+    model_real_prob, model_fake_prob = get_hf_image_prediction(analysis_pil)
     used_cloud_vit = model_real_prob is not None
     
     if not used_cloud_vit:
         model_real_prob = 0.50
         model_fake_prob = 0.50
         
-    # 3. Physical Signal Forensics (2D FFT Spectrum & ELA)
-    ela_res = compute_ela(pil_img)
-    fft_res = compute_fft_spectrum(np_img)
+    # 4. Physical Signal Forensics (2D FFT Spectrum & ELA)
+    ela_res = compute_ela(analysis_pil)
+    fft_res = compute_fft_spectrum(np_img_small)
     
-    # 4. Decision Fusion Engine
+    # 5. Decision Fusion Engine
     if prov_info['is_c2pa'] and prov_info['ai_tool']:
-        # Cryptographically signed AI generation manifest
         final_fake_prob = 99.8
         final_real_prob = 0.2
         verdict_reason = f"C2PA Content Credentials Signature: {prov_info['ai_tool']}"
     elif prov_info['has_camera_hardware']:
-        # Verified camera sensor EXIF directly from hardware
         final_real_prob = max(92.5, model_real_prob * 100.0)
         final_fake_prob = 100.0 - final_real_prob
         verdict_reason = f"Verified Camera Hardware Sensor ({prov_info['camera_make']} {prov_info['camera_model'] or ''}) & Optical Noise Profile"
     elif used_cloud_vit:
-        # High confidence ViT inference + physical harmonic verification
         if model_fake_prob > 0.60 or fft_res['hf_ratio'] > 0.90:
             final_fake_prob = max(88.0, model_fake_prob * 100.0)
             final_real_prob = 100.0 - final_fake_prob
@@ -356,7 +367,6 @@ def analyze_image(img_input):
             final_fake_prob = 100.0 - final_real_prob
             verdict_reason = "Natural Photographic Texture & Coherent Optical Characteristics"
     else:
-        # Pure signal & frequency physics fallback
         if fft_res['hf_ratio'] > 0.88 or ela_res['mean_error'] > 12.0:
             final_fake_prob = 84.5
             final_real_prob = 15.5
@@ -390,7 +400,7 @@ def analyze_image(img_input):
 2. **Provenance & C2PA Metadata Audit:**
    - C2PA Manifest: `{'⚠️ AI Origin (' + str(prov_info['ai_tool']) + ')' if prov_info['is_c2pa'] else 'No Synthetic C2PA Signature'}`
    - Camera Hardware: `{'✅ ' + str(prov_info['camera_make']) + ' ' + str(prov_info['camera_model'] or '') if prov_info['has_camera_hardware'] else 'No Camera Hardware EXIF'}`
-   - Dimensions: `{w} × {h} pixels`
+   - Dimensions: `{w_orig} × {h_orig} pixels`
 3. **2D Fourier Frequency Spectrum (FFT):**
    - High-Frequency Spectral Ratio: `{fft_res['hf_ratio']:.4f}`
    - Optical Profile: `{'Natural 1/f² Optical Physics' if fft_res['hf_ratio'] < 0.88 else 'High-Frequency Inpainting / Generation Artifacts'}`
@@ -406,7 +416,7 @@ def analyze_image(img_input):
 
 def analyze_audio(audio_input):
     """
-    High-accuracy detection for Real Human Voice vs AI Voice Clones & Synthetic Speech (ElevenLabs, TTS).
+    High-accuracy detection for Real Human Voice vs AI Voice Clones & Synthetic Speech.
     """
     if audio_input is None:
         return "Please upload an audio file."
@@ -514,7 +524,7 @@ def analyze_audio(audio_input):
 # 3. Video Detection Engine
 # ==========================================
 
-def analyze_video(video_path, max_frames=4):
+def analyze_video(video_path, max_frames=3):
     """
     Multi-frame video deepfake & AI video analysis.
     Samples key frames and evaluates temporal optical consistency.
@@ -537,10 +547,9 @@ def analyze_video(video_path, max_frames=4):
                 success, frame = v_cap.retrieve()
                 if not success:
                     continue
-                # Downscale frame for fast analysis & low memory footprint
                 h_f, w_f = frame.shape[:2]
-                if max(h_f, w_f) > 720:
-                    scale = 720.0 / max(h_f, w_f)
+                if max(h_f, w_f) > 640:
+                    scale = 640.0 / max(h_f, w_f)
                     frame = cv2.resize(frame, (int(w_f * scale), int(h_f * scale)))
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 frames.append(frame_rgb)

@@ -6,6 +6,7 @@ Wraps forensics.py and provides high-performance JSON & visual inspection endpoi
 import os
 import io
 import base64
+import asyncio
 import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -44,13 +45,23 @@ if os.path.exists("videos"):
     app.mount("/videos", StaticFiles(directory="videos"), name="videos")
 
 def pil_to_base64(pil_image: Image.Image) -> str:
-    """Converts a PIL Image to a Base64 data URI string."""
+    """Converts a PIL Image to a lightweight Base64 JPEG data URI string."""
     if pil_image is None:
         return ""
-    buffered = io.BytesIO()
-    pil_image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    return f"data:image/png;base64,{img_str}"
+    try:
+        buffered = io.BytesIO()
+        w, h = pil_image.size
+        if max(w, h) > 768:
+            scale = 768.0 / max(w, h)
+            thumb = pil_image.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
+        else:
+            thumb = pil_image
+            
+        thumb.convert("RGB").save(buffered, format="JPEG", quality=80)
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{img_str}"
+    except Exception:
+        return ""
 
 
 def parse_report_metrics(report_text: str):
@@ -109,7 +120,7 @@ async def analyze_image_endpoint(file: UploadFile = File(...)):
             tmp.write(content)
             temp_path = tmp.name
             
-        report, ela_img, fft_img = forensics.analyze_image(temp_path)
+        report, ela_img, fft_img = await asyncio.to_thread(forensics.analyze_image, temp_path)
         metrics = parse_report_metrics(report)
         
         return {
@@ -145,7 +156,7 @@ async def analyze_audio_endpoint(file: UploadFile = File(...)):
             tmp.write(content)
             temp_path = tmp.name
             
-        report = forensics.analyze_audio(temp_path)
+        report = await asyncio.to_thread(forensics.analyze_audio, temp_path)
         metrics = parse_report_metrics(report)
         
         return {
@@ -177,7 +188,7 @@ async def analyze_video_endpoint(file: UploadFile = File(...)):
             tmp.write(content)
             temp_path = tmp.name
             
-        report, preview_img = forensics.analyze_video(temp_path)
+        report, preview_img = await asyncio.to_thread(forensics.analyze_video, temp_path)
         metrics = parse_report_metrics(report)
         
         return {
@@ -213,7 +224,7 @@ async def analyze_sample_endpoint(sample_path: str):
         
     ext = os.path.splitext(target_path)[1].lower()
     if ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        report, ela_img, fft_img = forensics.analyze_image(target_path)
+        report, ela_img, fft_img = await asyncio.to_thread(forensics.analyze_image, target_path)
         metrics = parse_report_metrics(report)
         return {
             "success": True,
@@ -226,7 +237,7 @@ async def analyze_sample_endpoint(sample_path: str):
             }
         }
     elif ext in ['.flac', '.wav', '.mp3', '.ogg', '.m4a']:
-        report = forensics.analyze_audio(target_path)
+        report = await asyncio.to_thread(forensics.analyze_audio, target_path)
         metrics = parse_report_metrics(report)
         return {
             "success": True,
@@ -235,7 +246,7 @@ async def analyze_sample_endpoint(sample_path: str):
             "metrics": metrics
         }
     elif ext in ['.mp4', '.mov', '.avi', '.webm']:
-        report, preview_img = forensics.analyze_video(target_path)
+        report, preview_img = await asyncio.to_thread(forensics.analyze_video, target_path)
         metrics = parse_report_metrics(report)
         return {
             "success": True,
